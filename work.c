@@ -11,7 +11,7 @@ struct tree
     char ppid[10];
     char id[10];
     char console[2048];
-    char state[1];
+    char state;
 };
 struct tree* createTree()
 {
@@ -24,9 +24,18 @@ struct tree* createTree()
         nTree->branch[i]=NULL;
     nTree->size=5;
     memcpy(nTree->console,"",sizeof(""));
-    nTree->state[0]='\0';
+    nTree->state='\0';
     nTree->actsize=0;
     return nTree;
+}
+void clean(struct tree* root)
+{
+    for(int i=0;i<root->actsize;i++)
+    {
+        clean(root->branch[i]);
+        free(root->branch[i]);
+    }
+    free(root->branch);
 }
 void addList(struct tree* root,struct tree* list)
 {
@@ -85,7 +94,7 @@ struct tree* createList(const char* id, const char* ppid, const char* cons, cons
     memcpy(list->id,id,10);
     memcpy(list->ppid,ppid,10);
     memcpy(list->console,cons,2048);
-    list->state[0]=state[0];
+    list->state=state[0];
     list->size=0;
     list->actsize=0;
     list->branch=NULL;
@@ -119,6 +128,8 @@ int getDirdata(const char *name,char* procc)
         return -1;
     }
     int res=fread(rbuffer,1,sizeof(rbuffer),cmdData);
+    fclose(cmdData);
+    closedir(dir);
     if(res>0)
     {
         memcpy(procc,rbuffer,2048);
@@ -143,7 +154,12 @@ void getStat(const char* name, char* ppid, char* state)
         return;
     }
     int res=fread(rbuffer,1,sizeof(rbuffer),statData);
-    if (res==0) return;
+    if (res==0) 
+    {
+        fclose(statData);
+        closedir(dir);
+        return;
+    }
     int i=0;
     for(;i<sizeof(rbuffer);i++)
     {
@@ -162,6 +178,8 @@ void getStat(const char* name, char* ppid, char* state)
         ppid[k]=rbuffer[i];
     }
     ppid[k]='\0';
+    fclose(statData);
+    closedir(dir);
     return;
 }
 void listdir(const char *name, int indent, struct tree* head)
@@ -177,7 +195,7 @@ void listdir(const char *name, int indent, struct tree* head)
             char path[1024];
             char ppid[10];
             char procName[2048];
-            char state[1];
+            char state[10];
             if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
                 continue;
             if(!isNum(entry->d_name)) continue;
@@ -185,7 +203,6 @@ void listdir(const char *name, int indent, struct tree* head)
             int res=getDirdata(path,procName);
             if(res<0) continue;
             getStat(path,ppid,state);
-            printf("%s %s %s %s\n",entry->d_name,ppid,procName,state);
             struct tree* list=createList(entry->d_name,ppid, procName,state);
             int add=0;
             findList(head,list,&add);
@@ -205,4 +222,6 @@ int main()
     listdir("/proc",0,head);
     printf("\n\n\n");
     printList(head,0);
+    clean(head);
+    free(head);
 }
